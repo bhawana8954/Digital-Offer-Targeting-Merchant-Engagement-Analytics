@@ -1,4 +1,6 @@
 .venv/
-.cache/
-*.parquet
-*.csv.gz
+__pycache__/
+.env
+
+# Raw / intermediate data — never commit
+data/raw/
