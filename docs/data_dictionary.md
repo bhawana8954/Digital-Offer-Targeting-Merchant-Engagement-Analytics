@@ -1,59 +1,40 @@
-### Yelp Open Dataset — Sampling Methodology
+# Data Dictionary
 
-**Source:** Yelp Open Dataset (via Kaggle-hosted mirror), processed in a Kaggle
-Notebook rather than downloaded locally, due to the size of `review.json`
-(~5.3 GB uncompressed).
+## Criteo Uplift Dataset
 
-**Filtering approach:**
-- Category filter: `categories` contains "Restaurants"
-- Geographic filter: `city` in [Philadelphia, Tampa]
-- Reason: full dataset (150,346 businesses) is too large for local
-  development; filtering to a category + two metro areas produces a
-  manageable, representative analytical sample while preserving enough
-  volume for trend and engagement analysis
+**Source:** [criteo/criteo-uplift](https://huggingface.co/datasets/criteo/criteo-uplift) (Hugging Face), v2.1
+**Scale:** 13,979,592 rows × 16 columns
+**Data quality:** 0 missing values; 1,259,545 exact duplicate rows (expected — characteristic of high-frequency advertising log streams, not treated as an error)
 
-**Resulting sample:**
-| Metric | Value |
+| Column | Type | Description |
+|---|---|---|
+| `f0`–`f11` | float | 12 anonymized continuous features describing user/context characteristics |
+| `treatment` | int (0/1) | Intent-to-treat flag — whether a bid was placed in the RTB auction |
+| `exposure` | int (0/1) | Actual treatment received — whether the auction was won and the ad was successfully rendered (distinct from `treatment`) |
+| `visit` | int (0/1) | Whether the user visited the advertiser's site |
+| `conversion` | int (0/1) | Whether the user converted |
+
+**Note on `treatment` vs `exposure`:** `treatment` reflects *intent-to-treat* (ITT) — assignment to the treatment arm regardless of outcome — while `exposure` reflects whether the ad was actually delivered. This distinction matters for uplift modeling, since ITT analysis avoids the selection bias that would come from conditioning on `exposure` (auction wins are not random).
+
+### Derived: Development Sample
+A 1% uniform random subset (139,796 rows, `random_state=42`) was drawn via `pandas.DataFrame.sample()` for fast iteration during EDA/debugging, before running final computations on the full dataset. Saved as `data/samples/criteo_sample.csv`.
+
+### Derived: Incrementality Outputs
+
+| File | Description |
 |---|---|
-| Restaurant businesses (total) | 8,812 |
-| — Philadelphia | 5,852 |
-| — Tampa | 2,960 |
-| Reviews (linked to sampled businesses) | 990,521 |
-| Businesses represented in reviews | 8,812 / 8,812 (100%) |
-| Businesses with check-in records | 8,583 / 8,812 (97.4%) |
-| Businesses with no check-in record | 229 |
-| Orphan business IDs (reviews) | 0 |
-| Orphan business IDs (check-ins) | 0 |
+| `outputs/tables/incrementality_summary.csv` | Dev-sample conversion & visit rates, control vs. treatment, with absolute/relative lift |
+| `outputs/tables/segment_incrementality_summary.csv` | Full-dataset segment-level lift for the 4 selected features, restricted to segments meeting the "attractive segment" criteria (see `methodology.md`) |
 
-**Data quality note:** 229 businesses (2.6%) have no check-in activity
-recorded. This is treated as a legitimate "zero engagement" signal rather
-than missing data, and is handled explicitly in the merchant engagement
-scoring step rather than dropped.
+**Segmentation features:** Of the 12 anonymized features (`f0`–`f11`), only **`f0`, `f2`, `f6`, `f8`** produced multiple usable quantile bins with meaningful conversion-rate variation under quartile-based binning. The remaining 8 features collapsed into a single effective bin (high value repetition) and were excluded from segment-level analysis. This is a screening result specific to this dataset's feature distributions, not a general claim about feature importance.
 
-### Merchant Engagement Trends (Step 12)
+### Derived: Customer Targeting Model Outputs
 
-Two raw trend columns were added to the merchant engagement dataset,
-alongside the existing percent-change growth metrics from Step 11:
-
-| Column | Definition |
+| File | Description |
 |---|---|
-| `review_change` | `recent_reviews - earlier_reviews` (raw difference) |
-| `checkin_change` | `recent_checkins - earlier_checkins` (raw difference) |
+| `data/samples/customer_targeting_test_final.parquet` | Final v2 T-Learner test set (8,420 customers) with `p_treatment`, `p_control`, `uplift`, and `uplift_decile` columns — the scored, ranked output used for targeting evaluation |
+| `outputs/tables/customer_targeting_model_evaluation.csv` | ROC-AUC and Log Loss for the treatment and control arm models individually (within-group conversion prediction quality — not an uplift-ranking metric) |
+---
 
-These are kept **separate** from the Step 11 percent-change columns
-(`review_growth`, `checkin_growth`) rather than replacing them, since
-the two measure different things:
-
-- **Percent change** (`review_growth`, `checkin_growth`) — proportional
-  growth; sensitive to low baselines (e.g. 1 → 21 checkins reads as a
-  huge percentage even though the absolute activity is still small)
-- **Raw change** (`review_change`, `checkin_change`) — absolute
-  difference; better reflects real-world engagement volume, less
-  distorted by small denominators
-
-Both are retained so downstream analysis (segmentation, ranking,
-visualization) can choose the metric appropriate to the question being
-asked, rather than being locked into one definition of "trend."
-
-**Output:** merchant engagement table, 8,812 rows × 28 columns
-(business_id remains unique — no duplication introduced).
+## Yelp Open Dataset
+*(To be documented when the relevant notebooks — sampling, engagement scoring, sentiment/theme extraction — are reviewed.)*
