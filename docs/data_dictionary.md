@@ -37,4 +37,83 @@ A 1% uniform random subset (139,796 rows, `random_state=42`) was drawn via `pand
 ---
 
 ## Yelp Open Dataset
-*(To be documented when the relevant notebooks — sampling, engagement scoring, sentiment/theme extraction — are reviewed.)*
+
+### Raw Filtered Samples (Notebook 06 — Kaggle Sampling)
+
+**Source:** [Yelp Open Dataset](https://www.yelp.com/dataset) (`business.json`, `review.json`, `checkin.json`), filtered on Kaggle (server-side, no local download of raw files) via `06_sampling_kaggle.ipynb`
+**Filter criteria:** `categories` contains "Restaurants" (substring match) AND `city` ∈ {Philadelphia, Tampa} — the two highest-restaurant-count cities in the full dataset
+**Data quality:** 0 duplicate `business_id`s in the business sample; 0 orphan `business_id`s in the review and check-in samples (every ID traces back to the business sample); 229 of the 8,812 sampled businesses have no check-in record (expected — not a data quality issue)
+
+#### `data/raw/yelp/yelp_business_sample.csv`
+**Scale:** 8,812 rows × 14 columns
+
+| Column | Type | Description |
+|---|---|---|
+| `business_id` | str | Unique business identifier |
+| `name` | str | Business name |
+| `address`, `city`, `state`, `postal_code` | str | Location fields (city restricted to Philadelphia/Tampa) |
+| `latitude`, `longitude` | float | Geolocation |
+| `stars` | float | Average star rating |
+| `review_count` | int | Total review count (Yelp-reported, full-platform) |
+| `is_open` | int (0/1) | Business open/closed status |
+| `attributes` | dict/str | Business attributes (e.g. delivery, parking) |
+| `categories` | str | Comma-separated category tags (filtered on "Restaurants") |
+| `hours` | dict/str | Operating hours by day |
+
+#### `data/raw/yelp/yelp_review_sample_part_01.parquet` … `part_10.parquet`
+**Scale:** 990,521 rows × 9 columns combined, split into 10 parts (~100K rows / ~40MB each) for Kaggle→local transfer only — recombine via `glob` + `concat` before use
+
+| Column | Type | Description |
+|---|---|---|
+| `review_id` | str | Unique review identifier |
+| `user_id` | str | Reviewer identifier |
+| `business_id` | str | Foreign key to business sample |
+| `stars` | int | Star rating (1–5) given in this review |
+| `useful`, `funny`, `cool` | int | Yelp community vote counts on the review |
+| `text` | str | Review text |
+| `date` | datetime | Review timestamp |
+
+#### `data/raw/yelp/yelp_checkin_sample.csv`
+**Scale:** 8,583 rows × 2 columns (one row per business with ≥1 check-in)
+
+| Column | Type | Description |
+|---|---|---|
+| `business_id` | str | Foreign key to business sample |
+| `date` | str | Comma-separated string of check-in timestamps for this business |
+
+---
+#### `data/samples/yelp_merchant_engagement.csv`
+**Scale:** 8,812 rows (one per sampled business) × 28 columns. Built in Notebook 07 by joining business, review, and check-in samples and computing recent-vs-earlier (6-month) trend metrics.
+
+| Column | Type | Description |
+|---|---|---|
+| `(14 original business columns)` | - | Same as `yelp_business_sample.csv` — see above |
+| `total_reviews` |	int	| Lifetime review count for the business |
+| `earlier_reviews`, `recent_reviews` |	int | Review counts in the earlier (7/19/21–1/19/22 preceding 6mo) and recent (last 6mo) windows |
+| `review_growth` |	float | `(recent_reviews - earlier_reviews) / earlier_reviews`; `NaN` if earlier_reviews = 0 |
+| `review_change` |	int	| `recent_reviews - earlier_reviews`; always defined, including when earlier = 0 |
+| `average_rating` | float | Mean star rating across all reviews |
+| `earlier_average_rating`, `recent_average_rating` | float | Mean star rating within each window; `NaN` if no reviews in that window |
+| `rating_change` |	float |	`recent_average_rating - earlier_average_rating`; `NaN` if either window has no reviews |
+| `total_checkins` | int | Lifetime check-in event count (after exploding the raw timestamp string) |
+| `earlier_checkins`, `recent_checkins` | int | Check-in event counts per window |
+| `checkin_growth` | float | Percent change, same zero-guard logic as `review_growth` |
+| `checkin_change` | int | Raw difference, same logic as `review_change` |
+
+#### `data/samples/yelp_merchant_engagement.csv` 
+**Scale:** 8,812 rows × 33 columns. Adds normalized trend scores and a composite engagement score on top of the Notebook 07 columns.
+
+| Column | Type | Description |
+|---|---|---|
+| `rating_change_for_score` | float | `rating_change` with missing values filled to `0` (neutral), used only for normalization/scoring; the original `rating_change` column is preserved as-is |
+| `review_trend_norm` | float | `review_change` Min-Max scaled to [0, 1] across all businesses |
+| `checkin_trend_norm` | float | `checkin_change` Min-Max scaled to [0, 1] across all businesses |
+| `rating_trend_norm` | float | `rating_change_for_score` Min-Max scaled to [0, 1]; businesses with no `rating_change` land at ≈0.5 (neutral midpoint) |
+| `engagement_score` | float | Weighted composite: 44.44% `review_trend_norm` + 33.33% `checkin_trend_norm` + 22.22% `rating_trend_norm`. Range 0.2624–0.8748. **Provisional** — will be recomputed once the sentiment component is added |
+
+#### `data/samples/yelp_merchant_engagement.csv` 
+**Scale:** 8,812 rows × 34 columns. Adds a merchant health classification on top of the Notebook 08 columns.
+
+| Column | Type | Description |
+|---|---|---|
+| `merchant_status` | category | `Declining`, `Stable`, or `Growing`, assigned from fixed Q25/Q75 thresholds on `engagement_score` (0.5135836386 / 0.5198412698). No missing values. |

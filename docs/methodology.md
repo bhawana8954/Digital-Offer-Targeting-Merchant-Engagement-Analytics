@@ -104,4 +104,63 @@ A 1% development subset (139,796 rows) was drawn with a fixed seed (`random_stat
 
 **Business recommendation:** Prioritize the Top 10% of customers by predicted uplift for targeted offers; Top 20% is a reasonable expansion if broader reach is needed; targeting beyond Top 30% shows no evidence of benefit over random targeting. The model is best framed as a **precision targeting tool for the highest-uplift segment**, not a reliable ranking across the full population — consistent with all prior notebooks' caveats about conversion sparsity limiting confidence outside the top tier.
 
-*(This section will grow as later notebooks — incrementality testing, segmentation, T-learner modeling, Yelp engagement scoring, GenAI sentiment/theme extraction — are reviewed and added.)*
+## Yelp Merchant Engagement Workstream:
+
+### 1.Yelp Sampling
+
+**Execution environment:** run as a Kaggle Notebook against the Yelp Open Dataset mounted server-side — avoids downloading the ~5.3GB review.json locally.
+
+**City/category selection:** businesses filtered where categories contains "Restaurants" (case-insensitive substring match, not exact-category equality) → 52,268 restaurant businesses. Ranked by restaurant count per city; Philadelphia (5,852) and Tampa (2,960) selected as the top two cities.
+
+**Business sample:** 8,812 businesses, 0 duplicate business_ids.
+
+**Review sample:** review.json streamed in 100k-row chunks (memory constraint — file too large to load in one pass) and matched against the business_id set incrementally. Result: 990,521 reviews, all 8,812 sampled businesses represented.
+
+**Checkin sample:** filtered directly (small file, no chunking needed). Result: 8,583 businesses with check-in history — 229 of the 8,812 sampled businesses have no check-in record at all (expected gap, not a data quality issue).
+
+**Referential integrity checks:** post-filter, verified 0 orphan business_ids in both the review sample and the checkin sample (i.e., every ID in those samples traces back to the business sample).
+
+**Kaggle → local transfer:** the review sample (400MB+ as a single parquet) wouldn't reliably download as one file from the Kaggle UI, so it was split into 10 row-chunked parquet parts (~100k rows / ~40MB each) for transfer, to be recombined locally via glob + concat. Business and checkin samples were small enough to download directly as CSV.
+
+### 2.Merchant Engagement Table
+
+**Inputs combined:** business sample (8,812 rows), review sample (10 parquet parts reloaded via glob + concat, 990,521 rows), check-in sample (8,583 rows). All joined on business_id, left-joined onto the business table so every one of the 8,812 businesses is retained.
+
+**Recent vs. earlier window:** defined relative to the max review date in the dataset (2022-01-19), not the run date — recent = last 6 months (2021-07-19 to 2022-01-19), earlier = the preceding 6 months (2021-01-19 to 2021-07-19). Reviews/check-ins outside both windows are labeled "outside" and excluded from trend calculations (used only for lifetime totals).
+
+**Check-in event expansion:** raw check-in rows store a single comma-separated string of all timestamps per business. Before aggregation, this string is split and exploded into one row per check-in event, then parsed to datetime (unparseable timestamps dropped) — 1,796,822 individual check-in events recovered from 8,583 businesses.
+
+**Growth vs. change:** two parallel metrics computed for reviews and check-ins:
+- `*_growth` — percent change, (recent - earlier) / earlier, guarded with np.where(earlier > 0, ..., NaN) to avoid divide-by-zero; NaN where a business had 0 activity in the earlier period (not treated as 0% or infinite growth).
+- `*_change` — raw difference, recent - earlier, always defined including when earlier = 0 (added after growth, in a follow-up pass reloading the saved CSV).
+
+**Rating change:** `recent_average_rating - earlier_average_rating`, per-business, NaN when a business has no reviews in one or both windows.
+
+**Missing-value handling:** count-type columns (total_reviews, recent_reviews, earlier_reviews, total_checkins, recent_checkins, earlier_checkins) filled with 0 for businesses with no matching activity (left-join produces NaN, not a true gap); rate/change columns `(*_growth, *_average_rating, rating_change)` intentionally left as NaN rather than filled, since 0 or a placeholder would misrepresent "no data in this window."
+
+**Validation performed:** row count assertion (8,812 in = 8,812 out), zero duplicate business_ids, and a monthly-vs-overall total cross-check on the single highest-volume business (5,778 reviews / 18,615 check-ins matched exactly between monthly and lifetime aggregates) as a sanity check on the groupby logic.
+
+### 3.Merchant Engagement Score
+
+**Missing `rating_change` handling**: `rating_change` is only defined for businesses with reviews in both the recent and earlier windows (3,602 of 8,812; the other 5,210 have no review in one or both periods). A separate `rating_change_for_score` column fills these gaps with `0` (neutral change) — the original `rating_change` column is left untouched for transparency. This neutral fill is scoring-only, not a claim that the rating didn't move.
+
+**Normalization**: all three trend metrics (`review_change`, `checkin_change`, `rating_change_for_score`) are Min-Max scaled to [0, 1] via `sklearn.MinMaxScaler`, fit across all 8,812 businesses. No winsorization or outlier capping — extreme values are treated as genuine merchant activity, not noise. A neutral `rating_change_for_score` of 0 maps to ≈0.5 (midpoint) after scaling, since the observed range is roughly symmetric (-4 to +4).
+**Component correlation check**: `review_trend_norm` and `checkin_trend_norm` are moderately correlated (r = 0.478); `rating_trend_norm` is essentially independent of both (r ≈ 0.01–0.02). All three retained as distinct dimensions of engagement.
+
+**Provisional weighting**: `engagement_score` = 44.44% `review_trend_norm` + 33.33% `checkin_trend_norm` + 22.22% `rating_trend_norm` — a rescaling of the original business-specified 40:30:20:10 weighting (review/checkin/rating/sentiment) to sum to 100%, since the sentiment component doesn't exist yet at this point in the pipeline (added in a later notebook). Score range: 0.2624–0.8748, no missing values.
+
+**Weight sensitivity check**: compared against an equal-weight (33.33/33.33/33.33) alternative by ranking all 8,812 merchants under each scheme. Median absolute rank change = 31 positions, mean = ~234, max = 6,257. Confirms the weighting materially affects individual rankings, especially for merchants with imbalanced trend profiles — the business-driven weighting was kept anyway since it reflects the intended relative importance of each signal, not because the sensitivity was small.
+
+**Note**: this score is explicitly provisional and will be recomputed once the sentiment component is available, at which point the weighting will also be revisited.
+
+### 4.Merchant Health Classification 
+
+**Threshold method**: fixed Q25/Q75 cut points on `engagement_score` (0.5135836386 / 0.5198412698), computed once and applied via `pd.cut` with `(-inf, Q25]`, `(Q25, Q75]`, `(Q75, inf)` bins — rather than `pd.qcut`, which would force an exact 25/50/25 split by cutting through tied scores. Because a large number of merchants share the same score, exact quartile boundaries would arbitrarily split ties into different categories; fixed thresholds keep all tied merchants in the same bucket instead.
+
+**Classification rule**: `Declining` if `engagement_score <= Q25`; `Stable` if `Q25 < engagement_score <= Q75`; `Growing` if `engagement_score > Q75`.
+
+**Resulting distribution**: Declining 2,361 (26.79%), Stable 4,266 (48.41%), Growing 2,185 (24.80%) — close to but not exactly 25/50/25, as expected from the tie-preserving approach. 0 missing classifications.
+
+**Validation performed**: confirmed the classified set contains only the three expected labels, every one of the 8,812 merchants is classified, and structural checks (shape, uniqueness, no duplicate rows) hold after reload from disk.
+
+**Sanity check**: reviewed the top 5 merchants by engagement score within each status category to confirm the ranking behaves sensibly (e.g. high review/check-in growth merchants surfacing under Growing).

@@ -4,3 +4,7 @@ __pycache__/
 
 # Raw / intermediate data — never commit
 data/raw/
+
+# Large sample files — keep locally, but do not commit
+data/samples/yelp_checkin_sample.csv
+data/samples/yelp_business_sample.csv

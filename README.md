@@ -50,14 +50,17 @@ An end-to-end analytics project combining **incrementality/uplift modeling** (Cr
 
 ## Workstreams
 
-- **Criteo Uplift Modeling** — incrementality analysis and treatment-aware customer targeting model on RTB advertising data. See `notebooks/criteo_uplift/`.
-- **Yelp Merchant Engagement** — merchant health scoring, GenAI sentiment analysis, and review theme extraction. See `notebooks/yelp_merchant/`.
-
 - **Criteo Uplift Modeling** — incrementality analysis (global + segment-level) and treatment-aware customer targeting model on RTB advertising data. See `notebooks/criteo_uplift/`.
   - `01_data_preparation.ipynb` — data audit, validation, 1% dev sampling
   - `02_incrementality_analysis.ipynb` — treatment-vs-control lift (conversion & visit), full-dataset two-proportion z-test, heterogeneous treatment effect segmentation
   - `03_customer_targeting_model.ipynb` — T-Learner uplift model (v1, diagnostic — superseded by v2)
   - `04_customer_targeting_model_v2.ipynb` — T-Learner v2 (fixed): removed class balancing, added regularization tuning + feature standardization, benchmarked against a random baseline
   - `05_customer_targeting_model_evaluation.ipynb` — model performance metrics (ROC-AUC, Log Loss), percentile-based targeting groups, cumulative uplift curve, and a business targeting recommendation
+
+- **Yelp Merchant Engagement** — merchant health scoring, GenAI sentiment analysis, and review theme extraction. See `notebooks/yelp_merchant/`.
+  - `06_sampling_kaggle.ipynb` — Yelp Open Dataset sampling/filtering, executed on Kaggle (server-side data, no  local download of raw multi-GB files). Filters to Restaurants category businesses in Philadelphia + Tampa, then pulls matching reviews and check-ins.
+  - `07_merchant_engagement.ipynb` — builds the core merchant engagement table by combining business, review, and check-in samples: review/check-in volume and rating trends over a recent-vs-earlier 6-month window. Output: `data/samples/yelp_merchant_engagement.csv`.
+  - `08_merchant_engagement_score.ipynb` — normalizes review/check-in/rating trend metrics to 0–1 and combines them into a provisional weighted merchant engagement score. Updates `data/samples/yelp_merchant_engagement.csv` in place.
+  - `09_merchant_health_classification.ipynb` — classifies each merchant into Declining/Stable/Growing based on fixed engagement-score quartile thresholds. Updates `data/samples/yelp_merchant_engagement.csv` in place.
 
 *(This README is being built incrementally as each notebook is reviewed and documented — sections will expand accordingly.)*
