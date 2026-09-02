@@ -174,3 +174,9 @@ A 1% uniform random subset (139,796 rows, `random_state=42`) was drawn via `pand
 | `sentiment_polarity` | str | `Positive` (`merchant_sentiment_score > 0`) or `Negative` (`<= 0`) |
 | `priority_group` | str | `Expand`, `Monitor / Intervene`, `Growth Opportunity`, or `Reassess` — derived from `engagement_polarity` × `sentiment_polarity` |
 | `top_cx_theme` | str | This merchant's 1–2 most-mentioned CX themes (comma-separated), or `other_none` if no theme was mentioned |
+
+#### `outputs/narratives/executive_narrative_raw.md`
+Unedited Groq-generated draft (model `openai/gpt-oss-120b`, `temperature=0.3`) of the executive brief, built in Notebook 15. Kept for traceability; superseded by `executive_narrative.md` as the actual deliverable.
+
+#### `outputs/narratives/executive_narrative.md`
+Final, hand-polished executive brief combining Criteo incrementality findings and Yelp merchant engagement/CX findings into a 3-section narrative (ad targeting impact; merchant risk & CX drivers; strategic recommendations), built in Notebook 15 from `executive_narrative_raw.md`.

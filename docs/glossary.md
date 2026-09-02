@@ -36,6 +36,8 @@ Reference doc for terminology and math used across the project's notebooks. Upda
 | **Coverage gap vs. neutral value** | The distinction between a metric being genuinely absent (`NaN`, "not measured") and a metric being present but zero/neutral (`0`, "measured as neutral"). Conflating the two — e.g. filling missing sentiment with `0` — would misrepresent unmeasured merchants as neutral rather than unknown. |
 | **2×2 decision framework** | Combining two binary dimensions (here, engagement polarity and sentiment polarity) into four named quadrants, each mapped to a distinct business action, to translate two continuous/categorical signals into an actionable segmentation. |
 | **Closed taxonomy / forced-choice classification** | Constraining a model's categorical output to a fixed, predefined list of labels (with an explicit fallback like `other_none` for "none of the above") rather than allowing free-form category names, so downstream aggregation can rely on a consistent, finite set of values. |
+| **Absolute vs. relative lift ranking divergence** | When ranking segments by absolute lift (percentage-point difference) versus relative lift (percentage improvement over baseline) produces different top-ranked segments. Both orderings can be legitimate depending on whether the goal is maximizing total incremental conversions or maximizing response rate within a segment — neither ranking is inherently "correct." |
+| **Two-stage narrative generation (raw vs. cleaned)** | Generating GenAI output in two saved stages: an unedited raw draft kept for traceability, and a separately saved hand-polished final version. Preserves an audit trail of what the model actually produced versus what a human edited it into. |
 
 ## Formulas
 
