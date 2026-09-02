@@ -117,3 +117,60 @@ A 1% uniform random subset (139,796 rows, `random_state=42`) was drawn via `pand
 | Column | Type | Description |
 |---|---|---|
 | `merchant_status` | category | `Declining`, `Stable`, or `Growing`, assigned from fixed Q25/Q75 thresholds on `engagement_score` (0.5135836386 / 0.5198412698). No missing values. |
+
+#### `data/samples/yelp_sentiment_sample.csv`
+**Scale:** 2,193 rows × 11 columns. Stratified sample of reviews (up to 5 most recent per period) from 300 merchants (100 each Declining/Stable/Growing), built in Notebook 10 for downstream GenAI sentiment extraction.
+
+| Column | Type | Description |
+|---|---|---|
+| `review_id` | str | Unique review identifier |
+| `user_id` | str | Reviewer identifier |
+| `business_id` | str | Foreign key to the merchant engagement table |
+| `stars` | int | Star rating (1–5) given in this review |
+| `useful`, `funny`, `cool` | int | Yelp community vote counts on the review |
+| `text` | str | Review text |
+| `date` | datetime | Review timestamp |
+| `period` | str | `earlier` or `recent` — which 6-month window this review falls into |
+| `merchant_status` | category | `Declining`, `Stable`, or `Growing` — the merchant's health classification at time of sampling |
+
+#### `data/samples/yelp_review_sentiment_final.csv`
+**Scale:** 2,193 rows × 4 columns. GenAI-extracted sentiment for every review in `yelp_sentiment_sample.csv`, built in Notebook 11. Join back to `yelp_sentiment_sample.csv` on `review_id` to recover `business_id`, `stars`, `period`, `merchant_status`, etc.
+
+| Column | Type | Description |
+|---|---|---|
+| `review_id` | str | Foreign key to `yelp_sentiment_sample.csv` |
+| `sentiment_label` | str | `positive`, `neutral`, or `negative` |
+| `sentiment_score` | float | Sentiment polarity, -1.0 (very negative) to 1.0 (very positive) |
+| `sentiment_reason` | str | Concise (≤15 word) model-generated explanation for the label |
+
+### `data/samples/yelp_review_themes_final.csv`
+**Scale:** 2,193 rows × 2 columns. GenAI-extracted CX themes for every review in the sentiment sample, built in Notebook 13.
+
+| Column | Type | Description |
+|---|---|---|
+| `review_id` | str | Foreign key to `yelp_sentiment_sample.csv` / `yelp_review_sentiment_final.csv` |
+| `themes` | str | 1–2 comma-separated theme tags from the fixed 7-category taxonomy (see methodology) |
+
+#### `outputs/tables/merchant_theme_summary.csv`
+**Scale:** 300 rows (one per sampled merchant) × 11 columns. Per-merchant theme mention counts, built in Notebook 13.
+
+| Column | Type | Description |
+|---|---|---|
+| `business_id` | str | Merchant identifier |
+| `name` | str | Merchant name |
+| `merchant_status` | category | `Declining`, `Stable`, or `Growing` |
+| `priority_group` | str | `Expand`, `Monitor / Intervene`, `Growth Opportunity`, or `Reassess` |
+| `service_speed`, `staff_behavior`, `food_product_quality`, `pricing_value`, `cleanliness_ambiance`, `order_accuracy_wait_time`, `other_none` | int | Count of this merchant's sampled reviews mentioning each theme |
+
+#### `data/samples/yelp_merchant_priority_final.csv`
+**Scale:** 300 rows (one per sentiment-covered merchant) × 40 columns. Built across Notebooks 12–13: engagement metrics + merchant-level sentiment + investment-priority classification + top CX theme.
+
+| Column | Type | Description |
+|---|---|---|
+| *(34 columns from the merchant engagement table)* | — | Unchanged — see `yelp_merchant_engagement.csv` above |
+| `merchant_sentiment_score` | float | Mean GenAI `sentiment_score` across this merchant's sampled reviews, range [-1, 1] |
+| `sentiment_review_count` | int | Number of sampled reviews this merchant's sentiment score is based on |
+| `engagement_polarity` | str | `High` (merchant_status ∈ {Growing, Stable}) or `Low` (Declining) |
+| `sentiment_polarity` | str | `Positive` (`merchant_sentiment_score > 0`) or `Negative` (`<= 0`) |
+| `priority_group` | str | `Expand`, `Monitor / Intervene`, `Growth Opportunity`, or `Reassess` — derived from `engagement_polarity` × `sentiment_polarity` |
+| `top_cx_theme` | str | This merchant's 1–2 most-mentioned CX themes (comma-separated), or `other_none` if no theme was mentioned |

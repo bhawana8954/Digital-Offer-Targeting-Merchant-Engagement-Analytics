@@ -164,3 +164,67 @@ A 1% development subset (139,796 rows) was drawn with a fixed seed (`random_stat
 **Validation performed**: confirmed the classified set contains only the three expected labels, every one of the 8,812 merchants is classified, and structural checks (shape, uniqueness, no duplicate rows) hold after reload from disk.
 
 **Sanity check**: reviewed the top 5 merchants by engagement score within each status category to confirm the ranking behaves sensibly (e.g. high review/check-in growth merchants surfacing under Growing).
+
+### 5.Sentiment Review Sampling 
+
+**Eligibility**: a merchant qualifies for sentiment sampling only if it has at least one review in both the recent and earlier 6-month windows (same windows as the engagement analysis). Of 8,812 merchants, 3,602 are eligible (1,754 Declining, 1,531 Growing, 317 Stable) — eligibility varies sharply by status because Growing/Declining merchants are defined by recent activity, while Stable merchants by definition have less review volume in general.
+
+**Stratified sampling, not proportional**: exactly 100 merchants sampled from each status category (300 total, `random_state=42`), rather than sampling proportionally to the population. This is intentional — the goal is to compare sentiment *across* merchant health categories, not to estimate population-level sentiment, so equal representation of each category matters more than mirroring the natural distribution.
+
+**Review cap per merchant-period**: each sampled merchant contributes up to 5 reviews per period, sorted by date and taking the most recent — not a random selection — since the goal is to characterize sentiment as of that period, and the most recent reviews within a window are the closest representation of it. Merchants with fewer than 5 eligible reviews contribute all they have. The 5-review cap was chosen because the median eligible merchant has ~5 reviews per period; requiring 5 in both periods for every merchant would have excluded 175 of the 300 selected merchants.
+
+**Result**: 2,193 reviews total (1,093 earlier, 1,100 recent), all 300 sampled merchants represented in both periods, 0 duplicate review IDs, no merchant exceeding 5 reviews in either period.
+
+**Scope note**: this sample supports comparative merchant-level sentiment analysis (Declining vs. Stable vs. Growing), not population-level sentiment estimation — the equal stratification breaks the natural population proportions by design.
+
+### GenAI Sentiment Extraction 
+
+**Model & determinism**: Groq-hosted `openai/gpt-oss-20b`, `temperature=0.0` to keep sentiment classification as consistent/reproducible as possible across runs.
+
+**Text compression before sending to the model**: reviews over 120 words are compressed via `compress_review()` — kept in full if ≤120 words or ≤3 sentences (up to the 120-word cap in that case); otherwise reduced to the first 2 and last 2 sentences, to preserve opening/closing context while cutting token usage on long reviews (max observed: 894 words).
+
+**Structured output enforcement**: each batch prompt requires a strict JSON schema (`review_id`, `sentiment_label` ∈ {positive, neutral, negative}, `sentiment_score` ∈ [-1.0, 1.0], `sentiment_reason` ≤15 words), validated against a Pydantic model (`SingleReviewSentiment`) on return — invalid labels, out-of-range scores, or missing `review_id`s in the response raise an error rather than being silently accepted.
+
+**Evidence-based prompting**: the prompt explicitly instructs the model to base sentiment only on what's stated in the review text, not to infer unstated causes (e.g. a negative review isn't labeled a price complaint unless price is actually mentioned).
+
+**Batching & rate limits**: reviews processed in batches of 5 per API call. The full 2,193-review run used a reduced batch size of 2 (down from the batch size of 5 used in the initial sanity test) to work within Groq API rate limits.
+
+**Retry & fallback**: each batch retries up to 3 times with capped exponential backoff (max 10s between attempts). If a batch still fails after all retries, it's split and retried item-by-item; any single review that still can't be parsed gets a fallback record (`neutral`, `0.0`, reason `"Fallback assigned due to parsing error"`) rather than being dropped, so one bad review never blocks the whole run.
+
+**Checkpointing**: results are written to a checkpoint CSV after every batch, so an interrupted run (rate limit, crash) resumes from the last completed batch instead of restarting — the notebook shows exactly this behavior, resuming with all 2,193 already completed on a later rerun.
+
+**Post-processing before production save**: the checkpoint is cleaned of any leftover sanity-test rows (`review_id` starting with `test_`) and any fallback rows before being copied to the final production file — the run in question produced 0 fallback rows, so no records were actually dropped this time, but the cleanup step is a standing safeguard.
+
+**Result**: 2,193 reviews scored, 0 duplicates, all labels within the valid set, all scores within bounds. Sentiment distribution: positive 1,455 (66.3%), negative 627 (28.6%), neutral 111 (5.1%).
+
+### Sentiment Validation & Merchant Priority 
+
+**Validation approach**: sentiment output re-merged with source review metadata (`validate="one_to_one"` on every merge, explicit row-count and null-coverage assertions) rather than assumed correct — catches silent join errors (duplicated or dropped rows) immediately.
+
+**Sentiment-vs-rating agreement**: Pearson r = 0.9191, Spearman rho = 0.8221 (both p ≈ 0) across all 2,193 reviews — strong positive association between GenAI sentiment score and Yelp star rating, confirming the sentiment model is broadly consistent with human ratings. Both correlations were marginally lower than an earlier partial-data run (r = 0.9270, rho = 0.8320), a negligible shift attributed to sample completion rather than a change in model behavior.
+
+**Disagreement review**: 12 reviews (6 five-star/negative-sentiment, 6 one-or-two-star/positive-sentiment) manually inspected. Findings: some are sarcasm the model read literally (e.g. an exaggerated "highly recommended" after graphic negative imagery), others are genuine mixed reviews (positive about the food, negative about a specific issue like delivery) — not systematic model failures.
+
+**Merchant-level aggregation**: sentiment averaged per `business_id` (mean `sentiment_score`, count of reviews) for the 300 sampled merchants; reconciled to confirm the summed review counts equal the full 2,193-review set.
+
+**Coverage gap handling**: sentiment covers only the 300 sampled merchants (3.40% of all 8,812). Missing sentiment is left as `NaN`, explicitly not filled with `0` — `0` means "measured as neutral," `NaN` means "not measured." Engagement score and merchant health status remain available for all 8,812 merchants regardless of sentiment coverage; only sentiment-dependent analyses are restricted to the 300.
+
+**Engagement × sentiment framework**: for sentiment-covered merchants only — engagement polarity is High (Growing/Stable) or Low (Declining); sentiment polarity is Positive (`score > 0`) or Negative (`score <= 0`, ties classified negative to keep the split mutually exclusive and binary).
+
+**Priority groups**: four groups from the 2×2 combination — Expand (High+Positive, 147/49.0%), Monitor/Intervene (High+Negative, 53/17.67%), Growth Opportunity (Low+Positive, 79/26.33%), Reassess (Low+Negative, 21/7.0%). Compared against an earlier partial-data run, Expand's share grew (+7.9pp) and Monitor/Intervene's shrank (-7.8pp) on the completed dataset — a meaningful shift, flagged rather than glossed over.
+
+**Qualitative spot-check**: 2–3 merchants sampled per priority group (`random_state=42`) and manually reviewed against their underlying engagement/sentiment scores, as a sanity check — not a statistical validation — that the rule-based grouping produces sensible assignments.
+
+### Review Theme Extraction
+
+**Closed taxonomy**: reviews classified into 1–2 tags from a fixed 7-category list (service_speed, staff_behavior, food_product_quality, pricing_value, cleanliness_ambiance, order_accuracy_wait_time, other_none) — the model is explicitly instructed not to invent new tags, with `other_none` as the required fallback when nothing else fits.
+
+**Model & parsing**: same Groq `openai/gpt-oss-20b` at `temperature=0.0` as sentiment extraction, batches of 10, up to 3 retries per batch for malformed/invalid JSON responses (parsed via a JSON-extraction helper that strips markdown code fences before parsing).
+
+**Data quality fixes applied post-run**: one stray `review_id` present in the checkpoint but absent from the 2,193-review source sample was identified and removed before final save — this was the source of the earlier 2,194-vs-2,193 row mismatch. A hard validation check (raising an error if any survive) now confirms zero invalid `"none"` theme tags remain in the final output; the checkpoint-resume logic also treats any previously-saved row with an invalid theme as unprocessed, so a future rerun would auto-retry rather than requiring manual cleanup.
+
+**Theme aggregation**: each review's theme tags exploded into individual (business, theme) pairs, pivoted into a per-merchant theme-count matrix, and merged onto the 300-merchant priority table's metadata (name, status, priority group).
+
+**Top CX drivers (Declining merchants)**: food_product_quality (597 mentions, 45.06% of all Declining-tier theme mentions), staff_behavior (317, 23.92%), pricing_value (138, 10.42%) — the three most-cited issues among merchants already flagged as declining.
+
+**Top theme per merchant**: for each of the 300 merchants, the 1–2 most-mentioned themes (mentions > 0) are joined into a `top_cx_theme` field; merchants with zero mentions of any theme default to `"other_none"`. Merged onto the priority table (`validate="one_to_one"`), all 300 merchants covered, 0 missing.

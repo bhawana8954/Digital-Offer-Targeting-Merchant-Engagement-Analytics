@@ -19,6 +19,10 @@ An end-to-end analytics project combining **incrementality/uplift modeling** (Cr
 └── .gitignore
 ```
 - `docs/glossary.md` — business terminology, formulas, and statistical definitions used throughout the project
+- `docs/methodology.md` — methodology notes for each notebook: what was done and why
+- `docs/data_dictionary.md` — schema and provenance for every raw, sample, and derived dataset
+- `docs/criteo_targeting_findings.md` — business-facing findings and targeting recommendation from the Criteo customer targeting model
+- `docs/glossary.md` — business terminology, formulas, and statistical definitions used throughout the project
 
 ## Setup
 
@@ -62,5 +66,12 @@ An end-to-end analytics project combining **incrementality/uplift modeling** (Cr
   - `07_merchant_engagement.ipynb` — builds the core merchant engagement table by combining business, review, and check-in samples: review/check-in volume and rating trends over a recent-vs-earlier 6-month window. Output: `data/samples/yelp_merchant_engagement.csv`.
   - `08_merchant_engagement_score.ipynb` — normalizes review/check-in/rating trend metrics to 0–1 and combines them into a provisional weighted merchant engagement score. Updates `data/samples/yelp_merchant_engagement.csv` in place.
   - `09_merchant_health_classification.ipynb` — classifies each merchant into Declining/Stable/Growing based on fixed engagement-score quartile thresholds. Updates `data/samples/yelp_merchant_engagement.csv` in place.
+  - `10_yelp_genai_sentiment.ipynb` — selects a stratified sample of 300 merchants (100 each Declining/Stable/Growing) and their most recent reviews per period, for downstream GenAI sentiment analysis. Output: `data/samples/yelp_sentiment_sample.csv`.
+  - `11_genai_sentiment_extraction.ipynb` — runs the 2,193-review sentiment sample through Groq's `openai/gpt-oss-20b` via `src/genai_utils.py`, producing per-review sentiment labels/scores/reasons. Output: `data/samples/yelp_review_sentiment_final.csv`.
+  - `12_sentiment_validation_and_priority.ipynb` — validates GenAI sentiment against Yelp star ratings, aggregates sentiment to merchant level, and combines it with engagement scoring into four investment-priority groups (Expand / Monitor–Intervene / Growth Opportunity / Reassess). Output: `data/samples/yelp_merchant_priority_final.csv`.
+  - `13_review_theme_extraction.ipynb` — extracts CX themes (service speed, staff behavior, food quality, etc.) from the same review sample via Groq, builds a per-merchant theme-frequency table, and appends each merchant's top theme(s) to the priority table. Outputs: `data/samples/yelp_review_themes_final.csv`, `outputs/tables/merchant_theme_summary.csv`; updates `data/samples/yelp_merchant_priority_final.csv` in place.
+
+
+- `src/genai_utils.py` — shared GenAI utility module: review compression, batched Groq calls with Pydantic-validated structured output, retry/backoff with item-level fallback, and CSV checkpointing for resumable long-running extraction jobs. Used by `11_genai_sentiment_extraction.ipynb` (and later theme-extraction work).
 
 *(This README is being built incrementally as each notebook is reviewed and documented — sections will expand accordingly.)*
