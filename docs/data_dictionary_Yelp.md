@@ -47,7 +47,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 
 ---
 
-## `data/samples/yelp_merchant_engagement.csv` — after Notebook 07 (Merchant Engagement Table)
+### `data/samples/yelp_merchant_engagement.csv` — after Notebook 07 (Merchant Engagement Table)
 
 **Scale:** 8,812 rows (one per sampled business) × 28 columns. Built by joining business, review, and check-in samples and computing recent-vs-earlier (6-month) trend metrics.
 
@@ -66,7 +66,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `checkin_growth` | float | Percent change, same zero-guard logic as `review_growth` |
 | `checkin_change` | int | Raw difference, same logic as `review_change` |
 
-## `data/samples/yelp_merchant_engagement.csv` — after Notebook 08 (Merchant Engagement Score)
+### `data/samples/yelp_merchant_engagement.csv` — after Notebook 08 (Merchant Engagement Score)
 
 **Scale:** 8,812 rows × 33 columns. Adds normalized trend scores and a composite engagement score on top of the Notebook 07 columns (updated in place).
 
@@ -78,7 +78,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `rating_trend_norm` | float | `rating_change_for_score` Min-Max scaled to [0, 1]; businesses with no `rating_change` land at ≈0.5 (neutral midpoint) |
 | `engagement_score` | float | Weighted composite: 44.44% `review_trend_norm` + 33.33% `checkin_trend_norm` + 22.22% `rating_trend_norm`. Range 0.2624–0.8748. **Provisional** — recomputed once the sentiment component was added |
 
-## `data/samples/yelp_merchant_engagement.csv` — after Notebook 09 (Merchant Health Classification)
+### `data/samples/yelp_merchant_engagement.csv` — after Notebook 09 (Merchant Health Classification)
 
 **Scale:** 8,812 rows × 34 columns. Adds a merchant health classification on top of the Notebook 08 columns (updated in place).
 
@@ -86,7 +86,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 |---|---|---|
 | `merchant_status` | category | `Declining`, `Stable`, or `Growing`, assigned from fixed Q25/Q75 thresholds on `engagement_score` (0.5135836386 / 0.5198412698). No missing values. |
 
-## `data/samples/yelp_sentiment_sample.csv`
+### `data/samples/yelp_sentiment_sample.csv`
 
 **Scale:** 2,193 rows × 11 columns. Stratified sample of reviews (up to 5 most recent per period) from 300 merchants (100 each Declining/Stable/Growing), built in Notebook 10 for downstream GenAI sentiment extraction.
 
@@ -102,7 +102,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `period` | str | `earlier` or `recent` — which 6-month window this review falls into |
 | `merchant_status` | category | `Declining`, `Stable`, or `Growing` — the merchant's health classification at time of sampling |
 
-## `data/samples/yelp_review_sentiment_final.csv`
+### `data/samples/yelp_review_sentiment_final.csv`
 
 **Scale:** 2,193 rows × 4 columns. GenAI-extracted sentiment for every review in `yelp_sentiment_sample.csv`, built in Notebook 11. Join back to `yelp_sentiment_sample.csv` on `review_id` to recover `business_id`, `stars`, `period`, `merchant_status`, etc.
 
@@ -113,7 +113,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `sentiment_score` | float | Sentiment polarity, -1.0 (very negative) to 1.0 (very positive) |
 | `sentiment_reason` | str | Concise (≤15 word) model-generated explanation for the label |
 
-## `data/samples/yelp_review_themes_final.csv`
+### `data/samples/yelp_review_themes_final.csv`
 
 **Scale:** 2,193 rows × 2 columns. GenAI-extracted CX themes for every review in the sentiment sample, built in Notebook 13.
 
@@ -122,7 +122,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `review_id` | str | Foreign key to `yelp_sentiment_sample.csv` / `yelp_review_sentiment_final.csv` |
 | `themes` | str | 1–2 comma-separated theme tags from the fixed 7-category taxonomy (see `glossary_business_terms.md`) |
 
-## `outputs/tables/merchant_theme_summary.csv`
+### `outputs/tables/merchant_theme_summary.csv`
 
 **Scale:** 300 rows (one per sampled merchant) × 11 columns. Per-merchant theme mention counts, built in Notebook 13.
 
@@ -134,7 +134,7 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `priority_group` | str | `Expand`, `Monitor / Intervene`, `Growth Opportunity`, or `Reassess` |
 | `service_speed`, `staff_behavior`, `food_product_quality`, `pricing_value`, `cleanliness_ambiance`, `order_accuracy_wait_time`, `other_none` | int | Count of this merchant's sampled reviews mentioning each theme |
 
-## `data/samples/yelp_merchant_priority_final.csv`
+### `data/samples/yelp_merchant_priority_final.csv`
 
 **Scale:** 300 rows (one per sentiment-covered merchant) × 40 columns. Built across Notebooks 12–13: engagement metrics + merchant-level sentiment + investment-priority classification + top CX theme.
 
@@ -148,10 +148,10 @@ For the Criteo Uplift dataset dictionary, see `data_dictionary_criteo.md`.
 | `priority_group` | str | `Expand`, `Monitor / Intervene`, `Growth Opportunity`, or `Reassess` — derived from `engagement_polarity` × `sentiment_polarity` |
 | `top_cx_theme` | str | This merchant's 1–2 most-mentioned CX themes (comma-separated), or `other_none` if no theme was mentioned |
 
-## `outputs/narratives/executive_narrative_raw.md`
+### `outputs/narratives/executive_narrative_raw.md`
 
 Unedited Groq-generated draft (model `openai/gpt-oss-120b`, `temperature=0.3`) of the executive brief, built in Notebook 15. Kept for traceability; superseded by `executive_narrative.md` as the actual deliverable.
 
-## `outputs/narratives/executive_narrative.md`
+### `outputs/narratives/executive_narrative.md`
 
 Final, hand-polished executive brief combining Criteo incrementality findings and Yelp merchant engagement/CX findings into a 3-section narrative (ad targeting impact; merchant risk & CX drivers; strategic recommendations), built in Notebook 15 from `executive_narrative_raw.md`.

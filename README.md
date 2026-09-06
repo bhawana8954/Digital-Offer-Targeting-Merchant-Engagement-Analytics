@@ -40,14 +40,15 @@ Full detail: [`docs/criteo_targeting_findings.md`](docs/criteo_targeting_finding
 
 | Doc | Covers |
 |---|---|
-| [`docs/methodology_criteo.md`](docs/methodology_criteo.md) | What was done and why — Criteo uplift workstream (notebooks 01–05) |
-| [`docs/methodology_yelp.md`](docs/methodology_yelp.md) | What was done and why — Yelp engagement workstream (notebooks 06–15) |
-| [`docs/data_dictionary_criteo.md`](docs/data_dictionary_criteo.md) | Schema and provenance for Criteo datasets |
-| [`docs/data_dictionary_yelp.md`](docs/data_dictionary_yelp.md) | Schema and provenance for Yelp datasets |
-| [`docs/criteo_targeting_findings.md`](docs/criteo_targeting_findings.md) | Business-facing findings & recommendation — Criteo customer targeting |
-| [`docs/yelp_engagement_findings.md`](docs/yelp_engagement_findings.md) | Business-facing findings & recommendation — Yelp merchant engagement |
-| [`docs/glossary_business_terms.md`](docs/glossary_business_terms.md) | Business/domain terminology used throughout |
-| [`docs/glossary_formulas_stats.md`](docs/glossary_formulas_stats.md) | Formulas and statistical definitions used throughout |
+| [`docs/methodology_criteo.md`](docs\methodology_crieto.md) | What was done and why — Criteo uplift workstream (notebooks 01–05) |
+| [`docs/methodology_yelp.md`](docs\methodology_yelp.md) | What was done and why — Yelp engagement workstream (notebooks 06–15) |
+| [`docs/data_dictionary_criteo.md`](docs\data_dictionary_criteo.md) | Schema and provenance for Criteo datasets |
+| [`docs/data_dictionary_yelp.md`](docs\data_dictionary_yelp.md) | Schema and provenance for Yelp datasets |
+| [`docs/criteo_targeting_findings.md`](docs\criteo_targeting_findings.md) | Business-facing findings & recommendation — Criteo customer targeting |
+| [`docs/yelp_engagement_findings.md`](docs\yelp_engagement_findings.md) | Business-facing findings & recommendation — Yelp merchant engagement |
+| [`docs/glossary_business_terms.md`](docs\glossary_business_terms.md) | Business/domain terminology used throughout |
+| [`docs/glossary_formulas_stats.md`](docs\glossary_formulas_stats.md) | Formulas and statistical definitions used throughout |
+| [`docs/directory_structure.md`](docs\directory_structure.md) | Full repository layout — every file/folder, described |
 
 ## Setup
 
