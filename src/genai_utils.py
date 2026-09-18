@@ -35,7 +35,7 @@ def compress_review(text: str, max_words: int = 120) -> str:
                               #r"(?<=[.!?]) +" : It is a regular expression (regex)
                               #?<= : Positive lookbehind: Check what comes immediately before this position, but don't include that thing in the match."
                               #(?<=[.!?]) : "Look behind me and make sure there's a ., !, or ?."
-                              #+ : Look for one or more spaces.
+                              # + : Look for one or more spaces.
   sentences = [
       s.strip() for s in re.split(r"(?<=[.!?]) +", text) if s.strip()
   ]
@@ -81,31 +81,31 @@ def build_prompt(reviews: List[dict]) -> str:
 
   return f"""You are an expert customer sentiment analyst evaluating merchant reviews.
 
-Analyze each of the following Yelp reviews independently and extract structured sentiment data.
+        Analyze each of the following Yelp reviews independently and extract structured sentiment data.
 
-### Input Reviews ({expected_count} items):
-{reviews_json}
+        ### Input Reviews ({expected_count} items):
+        {reviews_json}
 
-### Instructions & Rules:
-1. Preserve the exact `review_id` string for every review.
-2. Return EXACTLY ONE result entry for every input review provided ({expected_count} total). Do not skip or omit any review.
-3. `sentiment_label`: Classify strictly as one of ["positive", "neutral", "negative"].
-4. `sentiment_score`: Continuous numerical score bounded between -1.0 (extremely negative) and +1.0 (extremely positive).
-5. `sentiment_reason`: Provide a concise explanation (maximum 15 words) for the sentiment assignment.
-6. Output MUST strictly be valid raw JSON with a top-level "results" array.
+        ### Instructions & Rules:
+        1. Preserve the exact `review_id` string for every review.
+        2. Return EXACTLY ONE result entry for every input review provided ({expected_count} total). Do not skip or omit any review.
+        3. `sentiment_label`: Classify strictly as one of ["positive", "neutral", "negative"].
+        4. `sentiment_score`: Continuous numerical score bounded between -1.0 (extremely negative) and +1.0 (extremely positive).
+        5. `sentiment_reason`: Provide a concise explanation (maximum 15 words) for the sentiment assignment.
+        6. Output MUST strictly be valid raw JSON with a top-level "results" array.
 
-JSON Format:
-{{
-  "results": [
-    {{
-      "review_id": "string",
-      "sentiment_label": "positive|neutral|negative",
-      "sentiment_score": 0.0,
-      "sentiment_reason": "string"
-    }}
-  ]
-}}
-"""
+        JSON Format:
+        {{
+          "results": [
+            {{
+              "review_id": "string",
+              "sentiment_label": "positive|neutral|negative",
+              "sentiment_score": 0.0,
+              "sentiment_reason": "string"
+            }}
+          ]
+        }}
+        """
 
 
 # --- Batching Utility ---

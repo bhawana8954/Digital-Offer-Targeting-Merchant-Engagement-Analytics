@@ -1,0 +1,5 @@
+Target Group,Observed Lift,Business Action
+Top 10%,0.005672,Prioritize
+Top 20%,0.002765,Consider if additional reach is required
+Top 30%,0.001223,Limited targeting; incremental benefit is weaker
+Random / Everyone,0.0014251781472684087,No uplift-based prioritization
